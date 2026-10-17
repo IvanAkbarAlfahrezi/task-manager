@@ -1,8 +1,6 @@
-[build]
-dependsOn = ["nodejs"]
-
-[dependencies]
-apt = [
+[phases.setup]
+nixPkgs = ["nodejs"]
+aptPkgs = [
   "chromium",
   "libnss3",
   "libatk1.0-0",
@@ -23,3 +21,6 @@ apt = [
   "ca-certificates",
   "fonts-liberation"
 ]
+
+[start]
+cmd = "node index.js"
