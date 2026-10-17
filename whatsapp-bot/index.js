@@ -8,7 +8,7 @@ const {
   fetchLatestBaileysVersion,
   initAuthCreds,
 } = require('@whiskeysockets/baileys');
-const { loadSession, saveSession } = require('./store');
+const { loadSession, saveSession, clearSession } = require('./store');
 const cron = require('node-cron');
 const qrcode = require('qrcode-terminal');
 const { createClient } = require('@supabase/supabase-js');
@@ -178,14 +178,17 @@ async function startBot() {
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         console.log(`🔌 Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
 
-        if (shouldReconnect) {
-          console.log('⏳ Menunggu 5 detik sebelum mencoba reconnect...');
-          setTimeout(() => {
-            startBot();
-          }, 5000);
-        } else {
-          console.log('🚪 Bot logout. Hapus baris di tabel wa_sessions Supabase, lalu restart dan scan/pairing ulang.');
-        }
+      if (shouldReconnect) {
+        console.log('⏳ Menunggu 5 detik sebelum mencoba reconnect...');
+        setTimeout(() => {
+          startBot();
+        }, 5000);
+      } else {
+        console.log('🚪 Bot logout terdeteksi. Menghapus session lama dari Supabase secara otomatis...');
+        await clearSession();
+        console.log('✅ Session dibersihkan. Silakan restart bot untuk scan/pairing ulang.');
+        process.exit(0);
+      }
       }
     });
   } catch (e) {
