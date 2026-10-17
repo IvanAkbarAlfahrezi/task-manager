@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import ConfirmDialog from './ConfirmDialog';
 
-const API = 'http://localhost:3000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const headers = {

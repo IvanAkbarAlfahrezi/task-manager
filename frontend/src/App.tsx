@@ -46,7 +46,7 @@ import NotificationBell from './components/NotificationBell';
 import RichText from './components/RichText';
 import ConfirmDialog from './components/ConfirmDialog';
 
-const API = 'http://localhost:3000/api';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed';
