@@ -15,11 +15,7 @@ import ConfirmDialog from './ConfirmDialog';
 const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const headers = {
-    ...options.headers,
-    'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123',
-  };
-  return fetch(url, { ...options, headers });
+  return fetch(url, { ...options });
 };
 
 interface Note {
@@ -105,7 +101,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
       if (editing) {
         const res = await fetchWithAuth(`${API}/notes?id=${editing.id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, content, color }),
         });
         const json = await res.json();
@@ -121,7 +117,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
       } else {
         const res = await fetchWithAuth(`${API}/notes`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ title, content, color, pinned: false }),
         });
         const json = await res.json();
@@ -144,7 +140,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     try {
       await fetchWithAuth(`${API}/notes?id=${n.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pinned: next }),
       });
     } catch {
@@ -157,7 +153,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     const prev = notes;
     setNotes((p) => p.filter((n) => n.id !== id));
     try {
-      await fetchWithAuth(`${API}/notes?id=${id}`, { method: 'DELETE', headers: { 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' } });
+      await fetchWithAuth(`${API}/notes?id=${id}`, { method: 'DELETE' });
       notify('Catatan dihapus');
     } catch {
       setNotes(prev);
