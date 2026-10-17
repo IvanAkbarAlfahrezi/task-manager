@@ -24,7 +24,7 @@ function deserialize(value) {
   if (Array.isArray(value)) return value.map(deserialize);
   if (value && typeof value === 'object') {
     if (typeof value.__b64 === 'string') {
-      return new Uint8Array(Buffer.from(value.__b64, 'base64'));
+      return Buffer.from(value.__b64, 'base64');
     }
     const out = {};
     for (const [k, v] of Object.entries(value)) out[k] = deserialize(v);
@@ -57,4 +57,9 @@ async function saveSession(session) {
   if (error) console.warn('⚠️  Gagal simpan session:', error.message);
 }
 
-module.exports = { loadSession, saveSession };
+async function clearSession() {
+  const { error } = await supabase.from('wa_sessions').delete().eq('session_id', SESSION_ID);
+  if (error) console.warn('⚠️  Gagal hapus session:', error.message);
+}
+
+module.exports = { loadSession, saveSession, clearSession };

@@ -56,127 +56,145 @@ if (!supabase) console.warn('⚠️  SUPABASE_URL/ANON_KEY belum diset — log a
 let sock;
 let cronScheduled = false;
 let pairingRequested = false;
+let isStarting = false;
 
 async function startBot() {
-  let saved = await loadSession();
-  let creds = saved && saved.creds ? saved.creds : initAuthCreds();
-  let keys = saved && saved.keys ? saved.keys : {};
-  pairingRequested = false;
+  if (isStarting) return;
+  isStarting = true;
 
-  const state = {
-    creds,
-    keys: {
-      get: (type, ids) => {
-        const keyType = keys[type] || {};
-        return ids.reduce((dict, id) => {
-          let value = keyType[id];
-          if (value) {
-            dict[id] = value;
+  try {
+    let saved = await loadSession();
+    let creds = saved && saved.creds ? saved.creds : initAuthCreds();
+    let keys = saved && saved.keys ? saved.keys : {};
+    pairingRequested = false;
+
+    const state = {
+      creds,
+      keys: {
+        get: (type, ids) => {
+          const keyType = keys[type] || {};
+          return ids.reduce((dict, id) => {
+            let value = keyType[id];
+            if (value) {
+              dict[id] = value;
+            }
+            return dict;
+          }, {});
+        },
+        set: (data) => {
+          for (const type of Object.keys(data)) {
+            keys[type] = keys[type] || {};
+            for (const id of Object.keys(data[type])) {
+              keys[type][id] = data[type][id];
+            }
           }
-          return dict;
-        }, {});
+          saveSession({ creds: state.creds, keys });
+        },
       },
-      set: (data) => {
-        for (const type of Object.keys(data)) {
-          keys[type] = keys[type] || {};
-          for (const id of Object.keys(data[type])) {
-            keys[type][id] = data[type][id];
-          }
+    };
+
+    const saveCreds = () => {
+      saveSession({ creds: state.creds, keys });
+    };
+
+    const { version } = await fetchLatestBaileysVersion();
+
+    sock = makeWASocket({
+      version,
+      auth: state,
+      logger: pino({ level: 'silent' }),
+      printQRInTerminal: false,
+      browser: ['Ubuntu', 'Chrome', '20.0.04'],
+    });
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
+        console.log('\n📱 Scan QR WhatsApp:');
+        console.log('   (1) Buka link ini di browser laptop, lalu scan dengan HP:');
+        console.log(`\n   👉 ${qrUrl}\n`);
+        console.log('   (2) Atau scan QR di bawah ini:\n');
+        qrcode.generate(qr, { small: true });
+      }
+
+      if (!sock.authState.creds.registered && PAIRING_NUMBER && !pairingRequested) {
+        pairingRequested = true;
+        try {
+          setTimeout(async () => {
+            const code = await sock.requestPairingCode(PAIRING_NUMBER);
+            console.log(`\n🔑 KODE PAIRING WHATSAPP ANDA: ${code}\n`);
+            console.log('   Buka WhatsApp → Perangkat Tertaut → Tautkan Perangkat → Tautkan dengan nomor telepon, lalu masukkan kode di atas.\n');
+          }, 4000);
+        } catch (err) {
+          console.error('❌ Gagal minta pairing code:', err.message);
         }
-        saveSession({ creds: state.creds, keys });
-      },
-    },
-  };
-
-  const saveCreds = () => {
-    saveSession({ creds: state.creds, keys });
-  };
-
-  const { version } = await fetchLatestBaileysVersion();
-
-  sock = makeWASocket({
-    version,
-    auth: state,
-    logger: pino({ level: 'silent' }),
-    printQRInTerminal: false,
-  });
-
-  sock.ev.on('creds.update', saveCreds);
-
-  sock.ev.on('connection.update', async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-
-    if (qr) {
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
-      console.log('\n📱 Scan QR WhatsApp:');
-      console.log('   (1) Buka link ini di browser laptop, lalu scan dengan HP:');
-      console.log(`\n   👉 ${qrUrl}\n`);
-      console.log('   (2) Atau scan QR di bawah ini:\n');
-      qrcode.generate(qr, { small: true });
-    }
-
-    if (!sock.authState.creds.registered && PAIRING_NUMBER && !pairingRequested) {
-      pairingRequested = true;
-      try {
-        setTimeout(async () => {
-          const code = await sock.requestPairingCode(PAIRING_NUMBER);
-          console.log(`\n🔑 KODE PAIRING WHATSAPP ANDA: ${code}\n`);
-          console.log('   Buka WhatsApp → Perangkat Tertaut → Tautkan Perangkat → Tautkan dengan nomor telepon, lalu masukkan kode di atas.\n');
-        }, 4000);
-      } catch (err) {
-        console.error('❌ Gagal minta pairing code:', err.message);
-      }
-    }
-
-    if (connection === 'open') {
-      console.log('✅ Bot WhatsApp siap berjalan dengan Baileys!');
-      console.log(`   Jadwal: pagi [${CRON_MORNING}] & malam [${CRON_EVENING}]`);
-      console.log(`   Deadline mepet: H-${URGENT_THRESHOLD} / H-1 / hari ini / terlambat`);
-      console.log(`   Mode: ${DIGEST ? 'DIGEST (gabung 1 pesan)' : 'per-tugas (1 pesan/tugas)'}`);
-      console.log(`   Anti-spam: ${ANTI_SPAM ? 'AKTIF' : 'NONAKTIF (selalu kirim)'}`);
-      console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
-
-      if (!cronScheduled) {
-        cron.schedule(CRON_MORNING, () => notifyDeadline('AM'));
-        cron.schedule(CRON_EVENING, () => notifyDeadline('PM'));
-        cronScheduled = true;
       }
 
-      if (TEST) {
-        console.log('🧪 MODE TEST: memicu pengecekan deadline sekarang...\n');
-        await notifyDeadline('TEST');
-        console.log('\n🧪 Mode test selesai. Bot tetap jalan (Ctrl+C untuk stop).\n');
+      if (connection === 'open') {
+        isStarting = false;
+        console.log('✅ Bot WhatsApp siap berjalan dengan Baileys!');
+        console.log(`   Jadwal: pagi [${CRON_MORNING}] & malam [${CRON_EVENING}]`);
+        console.log(`   Deadline mepet: H-${URGENT_THRESHOLD} / H-1 / hari ini / terlambat`);
+        console.log(`   Mode: ${DIGEST ? 'DIGEST (gabung 1 pesan)' : 'per-tugas (1 pesan/tugas)'}`);
+        console.log(`   Anti-spam: ${ANTI_SPAM ? 'AKTIF' : 'NONAKTIF (selalu kirim)'}`);
+        console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
+
+        if (!cronScheduled) {
+          cron.schedule(CRON_MORNING, () => notifyDeadline('AM'));
+          cron.schedule(CRON_EVENING, () => notifyDeadline('PM'));
+          cronScheduled = true;
+        }
+
+        if (TEST) {
+          console.log('🧪 MODE TEST: memicu pengecekan deadline sekarang...\n');
+          await notifyDeadline('TEST');
+          console.log('\n🧪 Mode test selesai. Bot tetap jalan (Ctrl+C untuk stop).\n');
+        }
+
+        if (process.stdin.isTTY) {
+          const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+          console.log('💬 Perintah: ketik "test" lalu Enter untuk cek & kirim sekarang, "q" lalu Enter untuk keluar.\n');
+          rl.on('line', async (line) => {
+            const cmd = line.trim().toLowerCase();
+            if (cmd === 'test' || cmd === 'trigger') {
+              await notifyDeadline('TEST');
+            } else if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
+              console.log('👋 Keluar...');
+              process.exit(0);
+            } else if (cmd) {
+              console.log('Perintah tidak dikenal. Ketik "test" untuk memicu, "q" untuk keluar.');
+            }
+          });
+        }
       }
 
-      if (process.stdin.isTTY) {
-        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-        console.log('💬 Perintah: ketik "test" lalu Enter untuk cek & kirim sekarang, "q" lalu Enter untuk keluar.\n');
-        rl.on('line', async (line) => {
-          const cmd = line.trim().toLowerCase();
-          if (cmd === 'test' || cmd === 'trigger') {
-            await notifyDeadline('TEST');
-          } else if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
-            console.log('👋 Keluar...');
-            process.exit(0);
-          } else if (cmd) {
-            console.log('Perintah tidak dikenal. Ketik "test" untuk memicu, "q" untuk keluar.');
-          }
-        });
-      }
-    }
+      if (connection === 'close') {
+        isStarting = false;
+        const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        console.log(`🔌 Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
 
-    if (connection === 'close') {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-      console.log(`🔌 Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
-
-      if (shouldReconnect) {
-        startBot();
-      } else {
-        console.log('🚪 Bot logout. Hapus baris di tabel wa_sessions Supabase, lalu restart dan scan QR lagi.');
+        if (shouldReconnect) {
+          console.log('⏳ Menunggu 5 detik sebelum mencoba reconnect...');
+          setTimeout(() => {
+            startBot();
+          }, 5000);
+        } else {
+          console.log('🚪 Bot logout. Hapus baris di tabel wa_sessions Supabase, lalu restart dan scan/pairing ulang.');
+        }
       }
-    }
-  });
+    });
+  } catch (e) {
+    isStarting = false;
+    console.error('❌ startBot error:', e.message);
+    setTimeout(() => {
+      startBot();
+    }, 5000);
+  }
 }
 
 function daysUntil(dateStr) {
