@@ -240,7 +240,7 @@ function buildMessage(task, d) {
 
   return (
     `*${urgencyText(d)}*\n\n` +
-    `*${task.title}*\n` +
+    `✅ *${task.title}*\n` +
     desc +
     `Deadline: ${dateLabel}\n\n` +
     `Selesaikan sekarang, jangan ditunda.`
@@ -263,7 +263,7 @@ function buildDigest(items) {
   const lines = items
     .slice()
     .sort((a, b) => a.d - b.d)
-    .map((it, i) => `${i + 1}. *${it.task.title}* — ${shortUrgency(it.d)}${clockLabel(it.task.deadline)}`);
+    .map((it, i) => `✅ ${i + 1}. *${it.task.title}* — ${shortUrgency(it.d)}${clockLabel(it.task.deadline)}`);
   return (
     `*${items.length} TUGAS MENDESAK*\n\n` +
     lines.join('\n') +
@@ -271,15 +271,13 @@ function buildDigest(items) {
   );
 }
 
-async function hasLog(taskId, today, type, slot) {
+async function hasLog(taskId, today) {
   if (!supabase) return false;
   const { data, error } = await supabase
     .from('wa_logs')
     .select('id')
     .eq('task_id', taskId)
     .eq('sent_on', today)
-    .eq('type', type)
-    .eq('slot', slot)
     .maybeSingle();
   if (error) console.warn('⚠️  Gagal cek wa_logs:', error.message);
   return !!data;
@@ -333,8 +331,8 @@ async function notifyDeadline(slot) {
       const type = labelType(d);
       if (!type) continue;
 
-      if (ANTI_SPAM && (await hasLog(task.id, today, type, slot))) {
-        console.log(`   ⏭ skip (sudah terkirim): ${task.title} [${type}/${slot}]`);
+      if (ANTI_SPAM && (await hasLog(task.id, today))) {
+        console.log(`   ⏭ skip (sudah terkirim hari ini): ${task.title} [${type}/${slot}]`);
         continue;
       }
 
