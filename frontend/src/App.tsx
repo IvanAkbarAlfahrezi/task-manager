@@ -9,6 +9,7 @@ import {
   useDroppable,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { motion } from 'framer-motion';
 import {
   GraduationCap,
   Sparkles,
@@ -530,12 +531,17 @@ export default function App() {
 
           {/* Stats */}
           {view === 'dashboard' && (
-            <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4"
+            >
               <StatCard icon={<ListTodo className="h-5 w-5" />} label="Total Tugas" value={stats.total} tone="indigo" />
               <StatCard icon={<PlayCircle className="h-5 w-5" />} label="Sedang Dikerjakan" value={stats.inProgress} tone="amber" />
               <StatCard icon={<CheckCheck className="h-5 w-5" />} label="Selesai" value={stats.completed} tone="emerald" />
               <StatCard icon={<AlertCircle className="h-5 w-5" />} label="Deadline Dekat" value={stats.urgent} tone="rose" />
-            </div>
+            </motion.div>
           )}
 
           {view === 'ai' && (
@@ -580,22 +586,42 @@ export default function App() {
                 ) : searched.length === 0 ? (
                   <EmptyState hasTasks={tasks.length > 0} onAdd={openAdd} />
                 ) : (
-                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                    {searched.map((task) => (
-                      <TaskCard
+                  <motion.div
+                    initial="hidden"
+                    animate="visible"
+                    variants={{
+                      hidden: {},
+                      visible: {
+                        transition: {
+                          staggerChildren: 0.05,
+                        },
+                      },
+                    }}
+                    className="grid grid-cols-1 gap-3 xl:grid-cols-2"
+                  >
+                    {searched.map((task, idx) => (
+                      <motion.div
                         key={task.id}
-                        task={task}
-                        ai={aiMap[uid(task.id)]}
-                        loading={loadingId === uid(task.id)}
-                        onOpen={openDetail}
-                        onGenerate={generateAI}
-                        onDelete={askDelete}
-                        onToggleStatus={updateStatus}
-                        onEdit={openEdit}
-                        badge={deadlineBadge}
-                      />
+                        variants={{
+                          hidden: { opacity: 0, y: 10 },
+                          visible: { opacity: 1, y: 0 },
+                        }}
+                        transition={{ duration: 0.25, ease: 'easeOut' }}
+                      >
+                        <TaskCard
+                          task={task}
+                          ai={aiMap[uid(task.id)]}
+                          loading={loadingId === uid(task.id)}
+                          onOpen={openDetail}
+                          onGenerate={generateAI}
+                          onDelete={askDelete}
+                          onToggleStatus={updateStatus}
+                          onEdit={openEdit}
+                          badge={deadlineBadge}
+                        />
+                      </motion.div>
                     ))}
-                  </div>
+                  </motion.div>
                 )}
               </div>
 
@@ -660,19 +686,25 @@ export default function App() {
               onDragCancel={() => setDraggingTask(null)}
             >
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {COLUMNS.map((col) => (
-                  <KanbanColumn
+                {COLUMNS.map((col, cidx) => (
+                  <motion.div
                     key={col.id}
-                    column={col}
-                    tasks={searched.filter((t) => t.status === col.id)}
-                    aiMap={aiMap}
-                    loadingId={loadingId}
-                    onOpen={openDetail}
-                    onGenerate={generateAI}
-                    onDelete={askDelete}
-                    onEdit={openEdit}
-                    badge={deadlineBadge}
-                  />
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: cidx * 0.05 }}
+                  >
+                    <KanbanColumn
+                      column={col}
+                      tasks={searched.filter((t) => t.status === col.id)}
+                      aiMap={aiMap}
+                      loadingId={loadingId}
+                      onOpen={openDetail}
+                      onGenerate={generateAI}
+                      onDelete={askDelete}
+                      onEdit={openEdit}
+                      badge={deadlineBadge}
+                    />
+                  </motion.div>
                 ))}
               </div>
               <DragOverlay dropAnimation={null}>
@@ -1014,18 +1046,25 @@ function KanbanColumn({
             Tarik tugas ke sini
           </div>
         ) : (
-          tasks.map((task) => (
-            <KanbanCard
+          tasks.map((task, idx) => (
+            <motion.div
               key={task.id}
-              task={task}
-              ai={aiMap[uid(task.id)]}
-              loading={loadingId === uid(task.id)}
-              onOpen={onOpen}
-              onGenerate={onGenerate}
-              onDelete={onDelete}
-              onEdit={onEdit}
-              badge={badge}
-            />
+              layout
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2, delay: idx * 0.02 }}
+            >
+              <KanbanCard
+                task={task}
+                ai={aiMap[uid(task.id)]}
+                loading={loadingId === uid(task.id)}
+                onOpen={onOpen}
+                onGenerate={onGenerate}
+                onDelete={onDelete}
+                onEdit={onEdit}
+                badge={badge}
+              />
+            </motion.div>
           ))
         )}
       </div>
