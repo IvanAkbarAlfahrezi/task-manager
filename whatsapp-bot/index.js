@@ -2,10 +2,18 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const {
+  default: makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  initAuthCreds,
+} = require('@whiskeysockets/baileys');
+const { loadSession, saveSession } = require('./store');
 const cron = require('node-cron');
 const qrcode = require('qrcode-terminal');
 const { createClient } = require('@supabase/supabase-js');
+const pino = require('pino');
 
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 const TARGET = process.env.WA_TARGET_NUMBER || '';
@@ -45,57 +53,112 @@ const supabase =
 
 if (!supabase) console.warn('⚠️  SUPABASE_URL/ANON_KEY belum diset — log anti-spam (wa_logs) tidak aktif.');
 
-const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
-  webVersionCache: { type: 'none' },
-  puppeteer: {
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--single-process'],
-  },
-});
+let sock;
+let cronScheduled = false;
 
-client.on('qr', (qr) => {
-  console.log('\n📱 Buka WhatsApp HP kamu → Perangkat Tertaut → Tautkan Perangkat, lalu scan QR ini:\n');
-  qrcode.generate(qr, { small: true });
-});
+async function startBot() {
+  let saved = await loadSession();
+  let creds = saved && saved.creds ? saved.creds : initAuthCreds();
+  let keys = saved && saved.keys ? saved.keys : {};
 
-client.on('authenticated', () => console.log('🔐 Autentikasi berhasil.'));
-client.on('auth_failure', (m) => console.error('❌ Auth gagal:', m));
-client.on('disconnected', (r) => console.error('🔌 Bot terputus:', r));
+  const state = {
+    creds,
+    keys: {
+      get: (type, ids) => {
+        const keyType = keys[type] || {};
+        return ids.reduce((dict, id) => {
+          let value = keyType[id];
+          if (value) {
+            dict[id] = value;
+          }
+          return dict;
+        }, {});
+      },
+      set: (data) => {
+        for (const type of Object.keys(data)) {
+          keys[type] = keys[type] || {};
+          for (const id of Object.keys(data[type])) {
+            keys[type][id] = data[type][id];
+          }
+        }
+        saveSession({ creds: state.creds, keys });
+      },
+    },
+  };
 
-client.on('ready', async () => {
-  console.log('✅ Bot WhatsApp siap berjalan!');
-  console.log(`   Jadwal: pagi [${CRON_MORNING}] & malam [${CRON_EVENING}]`);
-  console.log(`   Deadline mepet: H-${URGENT_THRESHOLD} / H-1 / hari ini / terlambat`);
-  console.log(`   Mode: ${DIGEST ? 'DIGEST (gabung 1 pesan)' : 'per-tugas (1 pesan/tugas)'}`);
-  console.log(`   Anti-spam: ${ANTI_SPAM ? 'AKTIF' : 'NONAKTIF (selalu kirim)'}`);
-  console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
+  const saveCreds = () => {
+    saveSession({ creds: state.creds, keys });
+  };
 
-  cron.schedule(CRON_MORNING, () => notifyDeadline('AM'));
-  cron.schedule(CRON_EVENING, () => notifyDeadline('PM'));
+  const { version } = await fetchLatestBaileysVersion();
 
-  if (TEST) {
-    console.log('🧪 MODE TEST: memicu pengecekan deadline sekarang...\n');
-    await notifyDeadline('TEST');
-    console.log('\n🧪 Mode test selesai. Bot tetap jalan (Ctrl+C untuk stop).\n');
-  }
+  sock = makeWASocket({
+    version,
+    auth: state,
+    logger: pino({ level: 'silent' }),
+    printQRInTerminal: false,
+  });
 
-  if (process.stdin.isTTY) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    console.log('💬 Perintah: ketik "test" lalu Enter untuk cek & kirim sekarang, "q" lalu Enter untuk keluar.\n');
-    rl.on('line', async (line) => {
-      const cmd = line.trim().toLowerCase();
-      if (cmd === 'test' || cmd === 'trigger') {
-        await notifyDeadline('TEST');
-      } else if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
-        console.log('👋 Keluar...');
-        process.exit(0);
-      } else if (cmd) {
-        console.log('Perintah tidak dikenal. Ketik "test" untuk memicu, "q" untuk keluar.');
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('connection.update', async (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log('\n📱 Buka WhatsApp HP kamu → Perangkat Tertaut → Tautkan Perangkat, lalu scan QR ini:\n');
+      qrcode.generate(qr, { small: true });
+    }
+
+    if (connection === 'open') {
+      console.log('✅ Bot WhatsApp siap berjalan dengan Baileys!');
+      console.log(`   Jadwal: pagi [${CRON_MORNING}] & malam [${CRON_EVENING}]`);
+      console.log(`   Deadline mepet: H-${URGENT_THRESHOLD} / H-1 / hari ini / terlambat`);
+      console.log(`   Mode: ${DIGEST ? 'DIGEST (gabung 1 pesan)' : 'per-tugas (1 pesan/tugas)'}`);
+      console.log(`   Anti-spam: ${ANTI_SPAM ? 'AKTIF' : 'NONAKTIF (selalu kirim)'}`);
+      console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
+
+      if (!cronScheduled) {
+        cron.schedule(CRON_MORNING, () => notifyDeadline('AM'));
+        cron.schedule(CRON_EVENING, () => notifyDeadline('PM'));
+        cronScheduled = true;
       }
-    });
-  }
-});
+
+      if (TEST) {
+        console.log('🧪 MODE TEST: memicu pengecekan deadline sekarang...\n');
+        await notifyDeadline('TEST');
+        console.log('\n🧪 Mode test selesai. Bot tetap jalan (Ctrl+C untuk stop).\n');
+      }
+
+      if (process.stdin.isTTY) {
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        console.log('💬 Perintah: ketik "test" lalu Enter untuk cek & kirim sekarang, "q" lalu Enter untuk keluar.\n');
+        rl.on('line', async (line) => {
+          const cmd = line.trim().toLowerCase();
+          if (cmd === 'test' || cmd === 'trigger') {
+            await notifyDeadline('TEST');
+          } else if (cmd === 'q' || cmd === 'quit' || cmd === 'exit') {
+            console.log('👋 Keluar...');
+            process.exit(0);
+          } else if (cmd) {
+            console.log('Perintah tidak dikenal. Ketik "test" untuk memicu, "q" untuk keluar.');
+          }
+        });
+      }
+    }
+
+    if (connection === 'close') {
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      console.log(`🔌 Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
+
+      if (shouldReconnect) {
+        startBot();
+      } else {
+        console.log('🚪 Bot logout. Hapus baris di tabel wa_sessions Supabase, lalu restart dan scan QR lagi.');
+      }
+    }
+  });
+}
 
 function daysUntil(dateStr) {
   if (!dateStr) return null;
@@ -193,6 +256,12 @@ async function addLog(taskId, today, type, slot) {
   if (error) console.warn('⚠️  Gagal simpan wa_logs:', error.message);
 }
 
+async function sendWAMessage(targetNumber, text) {
+  const digits = targetNumber.replace(/\D/g, '');
+  const jid = digits + '@s.whatsapp.net';
+  await sock.sendMessage(jid, { text });
+}
+
 async function notifyDeadline(slot) {
   if (!TARGET) {
     console.error('❌ WA_TARGET_NUMBER belum diisi di .env — perintah dibatalkan.');
@@ -204,19 +273,6 @@ async function notifyDeadline(slot) {
     const res = await fetch(`${API_URL}/tasks`);
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Gagal ambil tugas');
-
-    const digits = TARGET.replace(/\D/g, '');
-    let targetId = `${digits}@c.us`;
-    try {
-      const numberId = await client.getNumberId(digits);
-      if (!numberId) {
-        console.error(`❌ Nomor tujuan ${TARGET} tidak terdaftar di WhatsApp — perintah dibatalkan.`);
-        return;
-      }
-      targetId = numberId._serialized;
-    } catch (e) {
-      console.warn(`⚠️  Gagal verifikasi nomor (${e.message}); mencoba kirim ke ${targetId} langsung.`);
-    }
 
     const today = new Date().toISOString().slice(0, 10);
     let remaining = MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY - getTodayCount(today) : Infinity;
@@ -252,7 +308,7 @@ async function notifyDeadline(slot) {
 
     if (DIGEST) {
       try {
-        await client.sendMessage(targetId, buildDigest(pending));
+        await sendWAMessage(TARGET, buildDigest(pending));
         bumpTodayCount(today, 1);
         console.log(`   ✅ terkirim (digest): ${pending.length} tugas`);
         if (ANTI_SPAM) for (const it of pending) await addLog(it.task.id, today, it.type, slot);
@@ -267,7 +323,7 @@ async function notifyDeadline(slot) {
           break;
         }
         try {
-          await client.sendMessage(targetId, buildMessage(task, d));
+          await sendWAMessage(TARGET, buildMessage(task, d));
           sent++;
           remaining--;
           bumpTodayCount(today, 1);
@@ -288,5 +344,5 @@ if (!TARGET) {
   console.warn('⚠️  WA_TARGET_NUMBER belum diset. Bot tetap hidup (QR bisa di-scan), tapi tidak akan mengirim pesan.');
 }
 
-console.log('🚀 Menjalankan bot WhatsApp... (perintah stop: Ctrl+C)');
-client.initialize();
+console.log('🚀 Menjalankan bot WhatsApp dengan Baileys...');
+startBot();
