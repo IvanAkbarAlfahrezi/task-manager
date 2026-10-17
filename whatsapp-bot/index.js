@@ -178,17 +178,17 @@ async function startBot() {
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         console.log(`🔌 Koneksi terputus (status: ${statusCode}). Reconnecting: ${shouldReconnect}...`);
 
-      if (shouldReconnect) {
-        console.log('⏳ Menunggu 5 detik sebelum mencoba reconnect...');
-        setTimeout(() => {
-          startBot();
-        }, 5000);
-      } else {
-        console.log('🚪 Bot logout terdeteksi. Menghapus session lama dari Supabase secara otomatis...');
-        await clearSession();
-        console.log('✅ Session dibersihkan. Silakan restart bot untuk scan/pairing ulang.');
-        process.exit(0);
-      }
+        if (shouldReconnect) {
+          console.log('⏳ Menunggu 5 detik sebelum mencoba reconnect...');
+          setTimeout(() => {
+            startBot();
+          }, 5000);
+        } else {
+          console.log('🚪 Bot logout terdeteksi. Menghapus session lama dari Supabase secara otomatis...');
+          await clearSession();
+          console.log('✅ Session dibersihkan. Silakan restart bot untuk scan/pairing ulang.');
+          process.exit(0);
+        }
       }
     });
   } catch (e) {
