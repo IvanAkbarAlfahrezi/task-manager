@@ -694,13 +694,14 @@ export default function App({ onLogout }: { onLogout: () => void }) {
               onDragEnd={onDragEnd}
               onDragCancel={() => setDraggingTask(null)}
             >
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="flex gap-4 overflow-x-auto pb-4 snap-x md:grid md:grid-cols-3">
                 {COLUMNS.map((col, cidx) => (
                   <motion.div
                     key={col.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25, delay: cidx * 0.05 }}
+                    className="w-[85vw] sm:w-[320px] md:w-auto shrink-0 snap-center"
                   >
                     <KanbanColumn
                       column={col}
@@ -942,8 +943,8 @@ function TaskCard({
   const done = task.status === 'completed';
   const b = badge(task);
   return (
-    <div className="group rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300">
-      <div className="flex items-start gap-3">
+    <div className="group rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300 w-full">
+      <div className="flex items-start gap-3 w-full">
         <button onClick={() => onToggleStatus(task, done ? 'pending' : 'completed')} className="mt-0.5 shrink-0" title="Tandai selesai">
           {done ? (
             <CheckCircle2 className="h-6 w-6 text-emerald-500" />
@@ -955,16 +956,16 @@ function TaskCard({
           <h3 className={`truncate font-semibold ${done ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
             {task.title}
           </h3>
-          {task.description && <p className="mt-1 line-clamp-2 text-sm text-slate-500">{task.description}</p>}
+          {task.description && <p className="mt-1 line-clamp-2 text-sm text-slate-500 break-words">{task.description}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {b && (
               <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${b.cls}`}>
-                <Calendar className="h-3 w-3" /> {b.text}
+                <Calendar className="h-3 w-3 shrink-0" /> {b.text}
               </span>
             )}
             {task.status === 'in_progress' && (
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-0.5 text-xs text-amber-700">
-                <PlayCircle className="h-3 w-3" /> Dikerjakan
+                <PlayCircle className="h-3 w-3 shrink-0" /> Dikerjakan
               </span>
             )}
             <MaterialChip task={task} />
@@ -972,7 +973,7 @@ function TaskCard({
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <button
           onClick={() => onOpen(task)}
           className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
@@ -992,20 +993,22 @@ function TaskCard({
             AI siap
           </span>
         )}
-        <button
-          onClick={() => onEdit(task)}
-          className="ml-auto rounded-md p-2 text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
-          title="Edit"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => onDelete(task.id)}
-          className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-          title="Hapus"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="ml-auto flex items-center">
+          <button
+            onClick={() => onEdit(task)}
+            className="p-2 text-slate-400 transition hover:text-indigo-600"
+            title="Edit"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => onDelete(task.id)}
+            className="p-2 text-slate-400 transition hover:text-rose-500"
+            title="Hapus"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );
