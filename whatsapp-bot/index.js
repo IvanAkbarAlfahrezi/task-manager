@@ -1,4 +1,5 @@
 require('dotenv').config();
+process.env.TZ = process.env.CRON_TZ || 'Asia/Jakarta';
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -145,8 +146,8 @@ async function startBot() {
         console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
 
         if (!cronScheduled) {
-          cron.schedule(CRON_MORNING, () => notifyDeadline('AM'), { timezone: CRON_TZ });
-          cron.schedule(CRON_EVENING, () => notifyDeadline('PM'), { timezone: CRON_TZ });
+          cron.schedule(CRON_MORNING, () => notifyDeadline('AM'));
+          cron.schedule(CRON_EVENING, () => notifyDeadline('PM'));
           cronScheduled = true;
         }
 
