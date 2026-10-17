@@ -504,16 +504,28 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         {/* Main */}
         <div className="min-w-0 flex-1">
           <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 lg:hidden">
-                <GraduationCap className="h-5 w-5 text-white" />
+            <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 lg:hidden">
+                  <GraduationCap className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{greeting}</h1>
+                  <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">Kelola tugas kuliah & belajar lebih pintar dengan AI</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{greeting}</h1>
-                <p className="mt-0.5 text-sm text-slate-500">Kelola tugas kuliah & belajar lebih pintar dengan AI</p>
+              <div className="flex items-center gap-2 lg:hidden">
+                <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
+                <button
+                  onClick={onLogout}
+                  className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-rose-600 transition-all shadow-sm"
+                  title="Keluar"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 lg:flex">
               <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
               <button
                 onClick={onLogout}
@@ -844,6 +856,50 @@ export default function App({ onLogout }: { onLogout: () => void }) {
           setConfirmTask(null);
         }}
       />
+
+      {/* Floating Dock - Mobile Navigation Bar */}
+      <div className="fixed bottom-4 left-4 right-4 z-50 flex items-center justify-around rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-2xl backdrop-blur-md lg:hidden">
+        <button
+          onClick={() => setView('dashboard')}
+          className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+        >
+          <LayoutDashboard className="h-5 w-5" />
+          <span className="text-[10px]">Dashboard</span>
+        </button>
+        <button
+          onClick={() => setView('board')}
+          className={`relative flex flex-col items-center gap-1 ${view === 'board' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+        >
+          <Columns3 className="h-5 w-5" />
+          <span className="text-[10px]">Board</span>
+          {tasks.length > 0 && (
+            <span className="absolute -top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-100 text-[9px] font-bold text-indigo-600">
+              {tasks.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={openAdd}
+          className="-mt-5 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 transition active:scale-95"
+          title="Tambah Tugas"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+        <button
+          onClick={() => setView('notes')}
+          className={`flex flex-col items-center gap-1 ${view === 'notes' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+        >
+          <StickyNote className="h-5 w-5" />
+          <span className="text-[10px]">Catatan</span>
+        </button>
+        <button
+          onClick={() => setView('ai')}
+          className={`flex flex-col items-center gap-1 ${view === 'ai' ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}
+        >
+          <Sparkles className="h-5 w-5" />
+          <span className="text-[10px]">AI</span>
+        </button>
+      </div>
     </div>
   );
 }
