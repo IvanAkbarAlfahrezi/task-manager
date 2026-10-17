@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Pencil,
 } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
 
 const API = 'http://localhost:3000/api';
 
@@ -47,6 +48,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
   const [content, setContent] = useState('');
   const [color, setColor] = useState('yellow');
   const [saving, setSaving] = useState(false);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchNotes();
@@ -251,7 +253,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
                     <Pencil className="h-4 w-4" />
                   </button>
                   <button
-                    onClick={() => deleteNote(n.id)}
+                    onClick={() => setConfirmId(n.id)}
                     className="rounded-md p-1.5 text-slate-400 transition hover:bg-white/70 hover:text-rose-500"
                     title="Hapus"
                   >
@@ -344,6 +346,18 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmId}
+        title="Hapus catatan ini?"
+        message={notes.find((n) => n.id === confirmId)?.title}
+        confirmLabel="Hapus"
+        onCancel={() => setConfirmId(null)}
+        onConfirm={() => {
+          if (confirmId) deleteNote(confirmId);
+          setConfirmId(null);
+        }}
+      />
     </div>
   );
 }

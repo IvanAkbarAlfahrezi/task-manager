@@ -42,6 +42,7 @@ import {
 import NotesView from './components/NotesView';
 import NotificationBell from './components/NotificationBell';
 import RichText from './components/RichText';
+import ConfirmDialog from './components/ConfirmDialog';
 
 const API = 'http://localhost:3000/api';
 
@@ -137,6 +138,7 @@ export default function App() {
   const [score, setScore] = useState<number | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const [draggingTask, setDraggingTask] = useState<Task | null>(null);
+  const [confirmTask, setConfirmTask] = useState<Task | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
@@ -338,6 +340,11 @@ export default function App() {
     setSelectedTask(task);
     setUserAnswers({});
     setScore(null);
+  };
+
+  const askDelete = (id: string | number) => {
+    const t = tasks.find((x) => x.id === id);
+    if (t) setConfirmTask(t);
   };
 
   const submitQuiz = () => {
@@ -582,7 +589,7 @@ export default function App() {
                         loading={loadingId === uid(task.id)}
                         onOpen={openDetail}
                         onGenerate={generateAI}
-                        onDelete={deleteTask}
+                        onDelete={askDelete}
                         onToggleStatus={updateStatus}
                         onEdit={openEdit}
                         badge={deadlineBadge}
@@ -662,7 +669,7 @@ export default function App() {
                     loadingId={loadingId}
                     onOpen={openDetail}
                     onGenerate={generateAI}
-                    onDelete={deleteTask}
+                    onDelete={askDelete}
                     onEdit={openEdit}
                     badge={deadlineBadge}
                   />
@@ -705,7 +712,7 @@ export default function App() {
                       loading={loadingId === uid(task.id)}
                       onOpen={openDetail}
                       onGenerate={generateAI}
-                      onDelete={deleteTask}
+                      onDelete={askDelete}
                       onToggleStatus={updateStatus}
                       onEdit={openEdit}
                       badge={deadlineBadge}
@@ -725,7 +732,7 @@ export default function App() {
                   loading={loadingId === uid(task.id)}
                   onOpen={openDetail}
                   onGenerate={generateAI}
-                  onDelete={deleteTask}
+                  onDelete={askDelete}
                   onToggleStatus={updateStatus}
                   onEdit={openEdit}
                   badge={deadlineBadge}
@@ -783,6 +790,18 @@ export default function App() {
           onClose={() => setSelectedTask(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!confirmTask}
+        title="Hapus tugas ini?"
+        message={confirmTask?.title}
+        confirmLabel="Hapus"
+        onCancel={() => setConfirmTask(null)}
+        onConfirm={() => {
+          if (confirmTask) deleteTask(confirmTask.id);
+          setConfirmTask(null);
+        }}
+      />
     </div>
   );
 }
