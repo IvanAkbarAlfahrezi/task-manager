@@ -1258,7 +1258,7 @@ function AddTaskModal({
             {material ? (
               <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                 <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
-                <div className="min-w-0 flex-1">
+                <div className="pb-20 min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{material.fileName}</p>
                   <p className="text-xs text-slate-500">
                     {material.text ? `${material.text.slice(0, 80)}${material.text.length > 80 ? '…' : ''}` : 'Tidak ada teks terdeteksi'}
