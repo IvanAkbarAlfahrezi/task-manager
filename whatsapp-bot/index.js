@@ -19,6 +19,7 @@ const TARGET = process.env.WA_TARGET_NUMBER || '';
 const PAIRING_NUMBER = (process.env.WA_PAIRING_NUMBER || '').replace(/\D/g, '');
 const CRON_MORNING = process.env.CRON_MORNING || '0 7 * * *';
 const CRON_EVENING = process.env.CRON_EVENING || '0 20 * * *';
+const CRON_TZ = process.env.CRON_TZ || 'Asia/Jakarta';
 const URGENT_THRESHOLD = Number(process.env.URGENT_THRESHOLD || 2);
 const ANTI_SPAM = (process.env.ANTI_SPAM || 'true').toLowerCase() !== 'false';
 const DIGEST = (process.env.DIGEST || 'true').toLowerCase() !== 'false';
@@ -144,8 +145,8 @@ async function startBot() {
         console.log(`   Batas harian: ${MAX_SENDS_PER_DAY > 0 ? MAX_SENDS_PER_DAY + ' pesan/hari' : 'tanpa batas'}\n`);
 
         if (!cronScheduled) {
-          cron.schedule(CRON_MORNING, () => notifyDeadline('AM'));
-          cron.schedule(CRON_EVENING, () => notifyDeadline('PM'));
+          cron.schedule(CRON_MORNING, () => notifyDeadline('AM'), { timezone: CRON_TZ });
+          cron.schedule(CRON_EVENING, () => notifyDeadline('PM'), { timezone: CRON_TZ });
           cronScheduled = true;
         }
 
