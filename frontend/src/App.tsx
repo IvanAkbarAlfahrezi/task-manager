@@ -502,7 +502,7 @@ export default function App({ onLogout }: { onLogout: () => void }) {
         </aside>
 
         {/* Main */}
-        <div className="min-w-0 flex-1">
+        <div className="pb-28 min-w-0 flex-1">
           <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex w-full items-center justify-between gap-3 sm:w-auto">
               <div className="flex items-center gap-3">
