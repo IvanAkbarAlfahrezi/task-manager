@@ -50,7 +50,7 @@ const client = new Client({
   webVersionCache: { type: 'none' },
   puppeteer: {
     headless: true,
-    executablePath: process.env.CHROME_BIN || null,
+    executablePath: process.env.CHROME_BIN || '/usr/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--single-process'],
   },
 });
