@@ -104,7 +104,11 @@ async function startBot() {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log('\n📱 Buka WhatsApp HP kamu → Perangkat Tertaut → Tautkan Perangkat, lalu scan QR ini:\n');
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
+      console.log('\n📱 Scan QR WhatsApp:');
+      console.log('   (1) Buka link ini di browser laptop, lalu scan dengan HP:');
+      console.log(`\n   👉 ${qrUrl}\n`);
+      console.log('   (2) Atau scan QR di bawah ini:\n');
       qrcode.generate(qr, { small: true });
     }
 
