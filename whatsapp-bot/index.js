@@ -16,6 +16,7 @@ const pino = require('pino');
 
 const API_URL = process.env.API_URL || 'http://localhost:3000/api';
 const TARGET = process.env.WA_TARGET_NUMBER || '';
+const PAIRING_NUMBER = (process.env.WA_PAIRING_NUMBER || '').replace(/\D/g, '');
 const CRON_MORNING = process.env.CRON_MORNING || '0 7 * * *';
 const CRON_EVENING = process.env.CRON_EVENING || '0 20 * * *';
 const URGENT_THRESHOLD = Number(process.env.URGENT_THRESHOLD || 2);
@@ -54,11 +55,13 @@ if (!supabase) console.warn('⚠️  SUPABASE_URL/ANON_KEY belum diset — log a
 
 let sock;
 let cronScheduled = false;
+let pairingRequested = false;
 
 async function startBot() {
   let saved = await loadSession();
   let creds = saved && saved.creds ? saved.creds : initAuthCreds();
   let keys = saved && saved.keys ? saved.keys : {};
+  pairingRequested = false;
 
   const state = {
     creds,
@@ -110,6 +113,19 @@ async function startBot() {
       console.log(`\n   👉 ${qrUrl}\n`);
       console.log('   (2) Atau scan QR di bawah ini:\n');
       qrcode.generate(qr, { small: true });
+    }
+
+    if (!sock.authState.creds.registered && PAIRING_NUMBER && !pairingRequested) {
+      pairingRequested = true;
+      try {
+        setTimeout(async () => {
+          const code = await sock.requestPairingCode(PAIRING_NUMBER);
+          console.log(`\n🔑 KODE PAIRING WHATSAPP ANDA: ${code}\n`);
+          console.log('   Buka WhatsApp → Perangkat Tertaut → Tautkan Perangkat → Tautkan dengan nomor telepon, lalu masukkan kode di atas.\n');
+        }, 4000);
+      } catch (err) {
+        console.error('❌ Gagal minta pairing code:', err.message);
+      }
     }
 
     if (connection === 'open') {
