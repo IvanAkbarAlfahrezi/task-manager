@@ -1,0 +1,8 @@
+[build]
+dependsOn = ["nodejs"]
+
+[dependencies]
+apt = ["chromium-browser", "libxss1", "libappindicator1", "libindicator7"]
+
+[buildpacks]
+before = ["apt"]

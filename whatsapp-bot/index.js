@@ -49,9 +49,9 @@ const client = new Client({
   authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
   webVersionCache: { type: 'none' },
   puppeteer: {
-    headless: process.env.WA_HEADLESS === 'false' ? false : true,
-    protocolTimeout: 0,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    headless: true,
+    executablePath: process.env.CHROME_BIN || null,
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--no-zygote', '--single-process'],
   },
 });
 
