@@ -23,3 +23,6 @@ npm --prefix frontend run dev     # http://localhost:5173
 
 ## Setup Database
 Jalankan `supabase-setup.sql` di Supabase SQL Editor, lalu isi `backend/.env.local`.
+
+
+latihan git
