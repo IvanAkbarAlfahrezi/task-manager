@@ -1,0 +1,19 @@
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bot pengingat deadline tugas via WhatsApp (whatsapp-web.js)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node index.js --test",
+    "reset": "node -e \"const fs=require('fs');for(const p of ['.wwebjs_auth','.wwebjs_cache'])fs.rmSync(p,{recursive:true,force:true});console.log('Sesi & cache dihapus. Jalankan npm start lalu scan QR.')\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.3",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.26.0"
+  }
+}

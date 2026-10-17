@@ -24,3 +24,29 @@ ALTER TABLE ai_responses DISABLE ROW LEVEL SECURITY;
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('materials', 'materials', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- 4) Tabel catatan (notes) — halaman Catatan di sidebar
+CREATE TABLE IF NOT EXISTS notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  content TEXT,
+  color TEXT DEFAULT 'yellow',
+  pinned BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE notes DISABLE ROW LEVEL SECURITY;
+
+-- 5) Log notifikasi WhatsApp (anti-spam: 1x per tugas per hari per slot AM/PM)
+CREATE TABLE IF NOT EXISTS wa_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id UUID,
+  sent_on DATE DEFAULT CURRENT_DATE,
+  type TEXT,
+  slot TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (task_id, sent_on, type, slot)
+);
+
+ALTER TABLE wa_logs DISABLE ROW LEVEL SECURITY;

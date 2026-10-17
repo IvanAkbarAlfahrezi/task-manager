@@ -43,6 +43,8 @@ export async function POST(request: Request) {
       `Judul: ${title}\n` +
       `Deskripsi: ${description}` +
       materialSection +
+      '\n\nPENTING: Jika kamu menuliskan kode, bungkus di dalam blok kode dengan nama bahasanya ' +
+      '(contoh: ```dart untuk Flutter, ```python, ```js, ```sql). Jangan campur kode di dalam teks biasa.\n' +
       '\n\nFormat output JSON murni tanpa markdown backticks (```json ... ```):\n' +
       '{\n' +
       '  "explanation": "Penjelasan materi...",\n' +
@@ -84,7 +86,10 @@ export async function POST(request: Request) {
     }
 
     const text = response.text || '{}'
-    const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim()
+    let cleanedText = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+    const firstBrace = cleanedText.indexOf('{')
+    const lastBrace = cleanedText.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace !== -1) cleanedText = cleanedText.slice(firstBrace, lastBrace + 1)
     const data = JSON.parse(cleanedText)
 
     if (taskId) {

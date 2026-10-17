@@ -37,7 +37,11 @@ import {
   Columns3,
   GripVertical,
   Pencil,
+  StickyNote,
 } from 'lucide-react';
+import NotesView from './components/NotesView';
+import NotificationBell from './components/NotificationBell';
+import RichText from './components/RichText';
 
 const API = 'http://localhost:3000/api';
 
@@ -74,7 +78,7 @@ interface Material {
   text: string;
 }
 
-type View = 'dashboard' | 'board' | 'ai';
+type View = 'dashboard' | 'board' | 'ai' | 'notes';
 
 const uid = (id: string | number) => String(id);
 
@@ -95,7 +99,19 @@ const daysUntil = (deadline: string) => {
 
 const formatDate = (deadline: string) => {
   if (!deadline) return '';
-  return new Date(deadline).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  const d = new Date(deadline);
+  const datePart = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!deadline.includes('T')) return datePart;
+  const timePart = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+  return `${datePart} • ${timePart}`;
+};
+
+const toLocalInput = (iso: string) => {
+  if (!iso) return '';
+  if (!iso.includes('T')) return `${iso}T00:00`;
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
 export default function App() {
@@ -171,7 +187,7 @@ export default function App() {
     setEditingTask(task);
     setTitle(task.title);
     setDescription(task.description || '');
-    setDeadline(task.deadline || '');
+    setDeadline(task.deadline ? toLocalInput(task.deadline) : '');
     setMaterial(
       task.material_name
         ? {
@@ -217,7 +233,7 @@ export default function App() {
     const payload = {
       title,
       description,
-      deadline,
+      deadline: deadline ? new Date(deadline).toISOString() : null,
       material_name: material?.fileName || null,
       material_text: material?.text || null,
       material_url: material?.url || null,
@@ -347,6 +363,16 @@ export default function App() {
     return { total, completed, inProgress, urgent, progress, pending: total - completed };
   }, [tasks]);
 
+  const upcoming = useMemo(
+    () =>
+      tasks
+        .filter((t) => t.status !== 'completed' && !!t.deadline)
+        .map((t) => ({ task: t, d: daysUntil(t.deadline) as number }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, 5),
+    [tasks]
+  );
+
   const searched = useMemo(
     () =>
       tasks.filter(
@@ -378,28 +404,43 @@ export default function App() {
   const deadlineBadge = (task: Task) => {
     if (!task.deadline) return null;
     const d = daysUntil(task.deadline);
+    const clock = task.deadline.includes('T')
+      ? ' • ' + new Date(task.deadline).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+      : '';
     if (task.status === 'completed')
       return { text: formatDate(task.deadline), cls: 'bg-slate-100 text-slate-500 border-slate-200' };
     if (d === null) return { text: formatDate(task.deadline), cls: 'bg-slate-100 text-slate-600 border-slate-200' };
-    if (d < 0) return { text: `Terlambat ${Math.abs(d)}h`, cls: 'bg-rose-50 text-rose-600 border-rose-200' };
-    if (d === 0) return { text: 'Hari ini', cls: 'bg-rose-50 text-rose-600 border-rose-200' };
-    if (d <= 3) return { text: `${d} hari lagi`, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+    if (d < 0) return { text: `Terlambat ${Math.abs(d)}h${clock}`, cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+    if (d === 0) return { text: `Hari ini${clock}`, cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+    if (d <= 3) return { text: `${d} hari lagi${clock}`, cls: 'bg-amber-50 text-amber-700 border-amber-200' };
     return { text: formatDate(task.deadline), cls: 'bg-slate-100 text-slate-600 border-slate-200' };
   };
 
+  const searchInput = (
+    <div className="relative w-full sm:w-72">
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Cari tugas..."
+        className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm outline-none transition placeholder-slate-400 focus:border-slate-400"
+      />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
-      <div className="mx-auto flex max-w-7xl gap-6 p-4 lg:p-6">
+      <div className="mx-auto flex max-w-[1240px] gap-8 p-4 lg:p-8">
         {/* Sidebar */}
-        <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:flex">
+        <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col justify-between rounded-lg border border-slate-200 bg-white p-5 lg:flex">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 shadow-sm">
-                <GraduationCap className="h-6 w-6 text-white" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900">
+                <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="text-sm font-bold leading-tight text-slate-900">StudyDesk</p>
-                <p className="text-xs text-slate-500">AI Task Manager</p>
+                <p className="text-sm font-semibold leading-tight text-slate-900">StudyDesk</p>
+                <p className="text-xs text-slate-400">AI Task Manager</p>
               </div>
             </div>
 
@@ -418,6 +459,12 @@ export default function App() {
                 onClick={() => setView('board')}
               />
               <SidebarItem
+                icon={<StickyNote className="h-4 w-4" />}
+                label="Catatan"
+                active={view === 'notes'}
+                onClick={() => setView('notes')}
+              />
+              <SidebarItem
                 icon={<Sparkles className="h-4 w-4" />}
                 label="AI Assistant"
                 badge={Object.keys(aiMap).length}
@@ -427,14 +474,12 @@ export default function App() {
             </nav>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span className="flex items-center gap-1.5">
-                <Target className="h-3.5 w-3.5 text-indigo-600" /> Progres
-              </span>
-              <span className="text-slate-900">{stats.progress}%</span>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Progres</span>
+              <span className="text-sm font-semibold text-slate-900">{stats.progress}%</span>
             </div>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
               <div
                 className="h-full rounded-full bg-indigo-600 transition-all duration-500"
                 style={{ width: `${stats.progress}%` }}
@@ -448,27 +493,28 @@ export default function App() {
 
         {/* Main */}
         <div className="min-w-0 flex-1">
-          <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 lg:hidden">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 lg:hidden">
                 <GraduationCap className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">{greeting} 👋</h1>
-                <p className="text-sm text-slate-500">Kelola tugas kuliah & belajar lebih pintar dengan AI</p>
+                <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{greeting}</h1>
+                <p className="mt-0.5 text-sm text-slate-500">Kelola tugas kuliah & belajar lebih pintar dengan AI</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
               <button
                 onClick={fetchAll}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
                 title="Muat ulang"
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={openAdd}
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
               >
                 <Plus className="h-4 w-4" /> Tambah Tugas
               </button>
@@ -477,7 +523,7 @@ export default function App() {
 
           {/* Stats */}
           {view === 'dashboard' && (
-            <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 sm:grid-cols-4">
               <StatCard icon={<ListTodo className="h-5 w-5" />} label="Total Tugas" value={stats.total} tone="indigo" />
               <StatCard icon={<PlayCircle className="h-5 w-5" />} label="Sedang Dikerjakan" value={stats.inProgress} tone="amber" />
               <StatCard icon={<CheckCheck className="h-5 w-5" />} label="Selesai" value={stats.completed} tone="emerald" />
@@ -486,13 +532,13 @@ export default function App() {
           )}
 
           {view === 'ai' && (
-            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600">
+            <div className="mb-6 flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="font-semibold text-slate-900">AI Study Assistant</h2>
-                <p className="text-sm text-slate-500">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">AI Study Assistant</p>
+                <p className="mt-1 text-sm text-slate-600">
                   Klik tugas untuk membuka penjelasan, kunci jawaban & post-test yang tersimpan.
                 </p>
               </div>
@@ -500,29 +546,103 @@ export default function App() {
           )}
 
           {/* Toolbar */}
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              {view === 'board' && (
-                <span className="flex items-center gap-1.5">
-                  <GripVertical className="h-4 w-4" /> Tarik kartu antar kolom untuk ubah status
-                </span>
-              )}
-              {view === 'dashboard' && <span className="font-medium text-slate-700">Tugas Terbaru</span>}
+          {view === 'board' && (
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-center gap-1.5 text-sm text-slate-500">
+                <GripVertical className="h-4 w-4" /> Tarik kartu antar kolom untuk ubah status
+              </span>
+              {searchInput}
             </div>
-            <div className="relative sm:w-72">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Cari tugas..."
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none transition placeholder-slate-400 focus:border-indigo-500"
-              />
-            </div>
-          </div>
+          )}
+          {view === 'ai' && <div className="mb-4 flex justify-end">{searchInput}</div>}
 
           {/* Content */}
-          {loading ? (
-            <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-20 text-slate-400">
+          {view === 'notes' ? (
+            <NotesView notify={notify} />
+          ) : view === 'dashboard' ? (
+            <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_288px]">
+              <div className="min-w-0">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-slate-700">Tugas Terbaru</span>
+                  {searchInput}
+                </div>
+                {loading ? (
+                  <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-sm text-slate-400">
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat tugas...
+                  </div>
+                ) : searched.length === 0 ? (
+                  <EmptyState hasTasks={tasks.length > 0} onAdd={openAdd} />
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                    {searched.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        ai={aiMap[uid(task.id)]}
+                        loading={loadingId === uid(task.id)}
+                        onOpen={openDetail}
+                        onGenerate={generateAI}
+                        onDelete={deleteTask}
+                        onToggleStatus={updateStatus}
+                        onEdit={openEdit}
+                        badge={deadlineBadge}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <aside className="hidden space-y-6 lg:block">
+                <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Progres Belajar</p>
+                  <p className="mt-3 text-3xl font-semibold tracking-tight text-slate-900">{stats.progress}%</p>
+                  <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-indigo-600 transition-all duration-500"
+                      style={{ width: `${stats.progress}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+                    <span>{stats.completed} selesai</span>
+                    <span>{stats.pending} tersisa</span>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Deadline Terdekat</p>
+                    <button
+                      onClick={() => setView('board')}
+                      className="text-xs font-medium text-indigo-600 transition hover:text-indigo-700"
+                    >
+                      Board
+                    </button>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {upcoming.length === 0 ? (
+                      <p className="text-sm text-slate-500">Tidak ada deadline aktif.</p>
+                    ) : (
+                      upcoming.map(({ task }) => {
+                        const b = deadlineBadge(task);
+                        return (
+                          <button key={task.id} onClick={() => openDetail(task)} className="block w-full text-left">
+                            <p className="truncate text-sm font-medium text-slate-800">{task.title}</p>
+                            <div className="mt-1 flex items-center gap-2">
+                              {b && (
+                                <span className={`rounded-full border px-2 py-0.5 text-[11px] ${b.cls}`}>{b.text}</span>
+                              )}
+                              <span className="text-[11px] text-slate-400">{formatDate(task.deadline)}</span>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </aside>
+            </div>
+          ) : loading ? (
+            <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-white py-20 text-slate-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat tugas...
             </div>
           ) : view === 'board' ? (
@@ -550,7 +670,7 @@ export default function App() {
               </div>
               <DragOverlay dropAnimation={null}>
                 {draggingTask ? (
-                  <div className="w-72 rotate-2 rounded-xl border border-indigo-300 bg-white p-3 shadow-lg">
+                  <div className="w-72 rotate-2 rounded-lg border border-slate-300 bg-white p-3 shadow-lg">
                     <p className="truncate text-sm font-semibold text-slate-800">{draggingTask.title}</p>
                   </div>
                 ) : null}
@@ -558,9 +678,9 @@ export default function App() {
             </DndContext>
           ) : view === 'ai' ? (
             searched.filter((t) => aiMap[uid(t.id)]).length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
-                  <Sparkles className="h-8 w-8 text-indigo-500" />
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-20 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
+                  <Sparkles className="h-8 w-8 text-slate-400" />
                 </div>
                 <p className="mt-4 font-medium text-slate-700">Belum ada materi AI</p>
                 <p className="mt-1 max-w-sm text-sm text-slate-500">
@@ -568,7 +688,7 @@ export default function App() {
                 </p>
                 <button
                   onClick={() => setView('board')}
-                  className="mt-5 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  className="mt-5 flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                 >
                   <Columns3 className="h-4 w-4" /> Buka Board
                 </button>
@@ -618,7 +738,7 @@ export default function App() {
 
       {toast && (
         <div
-          className={`fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-xl border px-4 py-3 text-sm shadow-lg ${
+          className={`fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg border px-4 py-3 text-sm shadow-lg ${
             toast.type === 'ok'
               ? 'border-emerald-200 bg-white text-emerald-700'
               : 'border-rose-200 bg-white text-rose-700'
@@ -683,8 +803,8 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-        active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+        active ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
       }`}
     >
       {icon}
@@ -707,19 +827,16 @@ function StatCard({
   value: number;
   tone: 'indigo' | 'amber' | 'emerald' | 'rose';
 }) {
-  const tones: Record<string, string> = {
-    indigo: 'bg-indigo-50 text-indigo-600',
-    amber: 'bg-amber-50 text-amber-600',
-    emerald: 'bg-emerald-50 text-emerald-600',
-    rose: 'bg-rose-50 text-rose-600',
-  };
+  const urgent = tone === 'rose' && value > 0;
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${tones[tone]}`}>{icon}</div>
-        <span className="text-3xl font-bold text-slate-900">{value}</span>
+    <div className="bg-white p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">{label}</p>
+        <span className="text-slate-300">{icon}</span>
       </div>
-      <p className="mt-3 text-xs font-medium text-slate-500">{label}</p>
+      <p className={`mt-4 text-3xl font-semibold tracking-tight ${urgent ? 'text-rose-600' : 'text-slate-900'}`}>
+        {value}
+      </p>
     </div>
   );
 }
@@ -732,7 +849,7 @@ function MaterialChip({ task }: { task: Task }) {
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => !task.material_url && e.preventDefault()}
-      className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-0.5 text-xs text-indigo-700 transition hover:bg-indigo-100"
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-xs text-slate-600 transition hover:bg-slate-50"
     >
       <Paperclip className="h-3 w-3 shrink-0" />
       <span className="truncate">{task.material_name}</span>
@@ -765,7 +882,7 @@ function TaskCard({
   const done = task.status === 'completed';
   const b = badge(task);
   return (
-    <div className="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-indigo-200 hover:shadow">
+    <div className="group rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-300">
       <div className="flex items-start gap-3">
         <button onClick={() => onToggleStatus(task, done ? 'pending' : 'completed')} className="mt-0.5 shrink-0" title="Tandai selesai">
           {done ? (
@@ -786,7 +903,7 @@ function TaskCard({
               </span>
             )}
             {task.status === 'in_progress' && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs text-amber-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-white px-2.5 py-0.5 text-xs text-amber-700">
                 <PlayCircle className="h-3 w-3" /> Dikerjakan
               </span>
             )}
@@ -798,33 +915,33 @@ function TaskCard({
       <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
         <button
           onClick={() => onOpen(task)}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+          className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
         >
           <LayoutDashboard className="h-3.5 w-3.5" /> Detail
         </button>
         <button
           onClick={() => onGenerate(task)}
           disabled={loading}
-          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+          className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
           {loading ? 'Memproses...' : ai ? 'Regenerate' : 'Tanya AI'}
         </button>
         {ai && (
-          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
             AI siap
           </span>
         )}
         <button
           onClick={() => onEdit(task)}
-          className="ml-auto rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
+          className="ml-auto rounded-md p-2 text-slate-400 transition hover:bg-slate-100 hover:text-indigo-600"
           title="Edit"
         >
           <Pencil className="h-4 w-4" />
         </button>
         <button
           onClick={() => onDelete(task.id)}
-          className="rounded-lg p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+          className="rounded-md p-2 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
           title="Hapus"
         >
           <Trash2 className="h-4 w-4" />
@@ -859,22 +976,22 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-[420px] flex-col rounded-2xl border bg-slate-100/60 p-3 transition ${
-        isOver ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200'
+      className={`flex min-h-[420px] flex-col rounded-lg border bg-slate-50/70 p-3 transition ${
+        isOver ? 'border-slate-400 bg-slate-100' : 'border-slate-200'
       }`}
     >
       <div className="mb-3 flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${column.dot}`} />
-          <h3 className={`text-sm font-semibold ${column.accent}`}>{column.title}</h3>
+          <span className={`h-1.5 w-1.5 rounded-full ${column.dot}`} />
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{column.title}</h3>
         </div>
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500 shadow-sm">
+        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500">
           {tasks.length}
         </span>
       </div>
       <div className="flex-1 space-y-2">
         {tasks.length === 0 ? (
-          <div className="flex h-24 items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-400">
+          <div className="flex h-24 items-center justify-center rounded-lg border border-dashed border-slate-300 text-xs text-slate-400">
             Tarik tugas ke sini
           </div>
         ) : (
@@ -927,7 +1044,7 @@ function KanbanCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border border-slate-200 bg-white p-3 shadow-sm ${isDragging ? 'opacity-40' : ''}`}
+      className={`rounded-lg border border-slate-200 bg-white p-3 transition hover:border-slate-300 ${isDragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-start gap-2">
         <button
@@ -948,12 +1065,12 @@ function KanbanCard({
               </span>
             )}
             {task.material_name && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] text-indigo-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-500">
                 <Paperclip className="h-3 w-3" /> File
               </span>
             )}
             {ai && (
-              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-600">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
                 AI
               </span>
             )}
@@ -1031,14 +1148,14 @@ function AddTaskModal({
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4 backdrop-blur-sm">
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-100 p-5">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
-            {isEditing ? <Pencil className="h-5 w-5 text-indigo-600" /> : <Plus className="h-5 w-5 text-indigo-600" />}
+          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+            {isEditing ? <Pencil className="h-4 w-4 text-indigo-600" /> : <Plus className="h-4 w-4 text-indigo-600" />}
             {isEditing ? 'Edit Tugas' : 'Tambah Tugas Baru'}
           </h2>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -1046,7 +1163,7 @@ function AddTaskModal({
           <Field label="Judul Tugas / Matkul">
             <input
               autoFocus
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-indigo-500"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
               placeholder="Contoh: Kalkulus - Integral Tentu"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -1055,16 +1172,16 @@ function AddTaskModal({
           <Field label="Deskripsi / Soal">
             <textarea
               rows={3}
-              className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-indigo-500"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
               placeholder="Detail atau soal tugas..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </Field>
-          <Field label="Deadline">
+          <Field label="Deadline (tanggal & jam)">
             <input
-              type="date"
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-indigo-500"
+              type="datetime-local"
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
             />
@@ -1072,8 +1189,8 @@ function AddTaskModal({
 
           <Field label="Materi / File Pendukung (PDF, Word, PPT, Excel, Gambar)">
             {material ? (
-              <div className="flex items-start gap-3 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
-                <FileText className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
+              <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-slate-800">{material.fileName}</p>
                   <p className="text-xs text-slate-500">
@@ -1098,20 +1215,20 @@ function AddTaskModal({
                   if (f) onFile(f);
                 }}
                 onClick={() => inputRef.current?.click()}
-                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition ${
-                  dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50'
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-5 text-center transition ${
+                  dragOver ? 'border-slate-900 bg-slate-50' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
                 }`}
               >
                 {uploading ? (
                   <>
-                    <Loader2 className="h-7 w-7 animate-spin text-indigo-600" />
+                    <Loader2 className="h-7 w-7 animate-spin text-slate-500" />
                     <p className="mt-2 text-sm text-slate-500">Memproses file...</p>
                   </>
                 ) : (
                   <>
                     <UploadCloud className="h-7 w-7 text-slate-400" />
                     <p className="mt-2 text-sm text-slate-600">
-                      Tarik & lepas file di sini, atau <span className="font-medium text-indigo-600">pilih file</span>
+                      Tarik & lepas file di sini, atau <span className="font-medium text-slate-900">pilih file</span>
                     </p>
                     <p className="text-xs text-slate-400">PDF, DOCX, PPTX, XLSX, JPG, PNG (maks ~15MB)</p>
                   </>
@@ -1134,14 +1251,14 @@ function AddTaskModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+              className="flex-1 rounded-lg border border-slate-200 bg-white py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={saving || uploading || !title.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {saving ? 'Menyimpan...' : isEditing ? 'Simpan Perubahan' : 'Simpan Tugas'}
@@ -1175,28 +1292,28 @@ function AIDrawer({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40">
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
       <div className="relative flex h-full w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-slate-100 p-5">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">AI Study Assistant</p>
-              <h3 className="max-w-md truncate text-lg font-bold text-slate-900">{task.title}</h3>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">AI Study Assistant</p>
+              <h3 className="mt-1 max-w-md truncate text-base font-semibold text-slate-900">{task.title}</h3>
             </div>
           </div>
-          <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+          <button onClick={onClose} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-5">
           {task.material_name && (
-            <div className="flex items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 text-sm">
-              <Paperclip className="h-4 w-4 text-indigo-600" />
+            <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <Paperclip className="h-4 w-4 text-slate-500" />
               <span className="truncate text-slate-700">{task.material_name}</span>
               {task.material_url && (
                 <a
@@ -1213,8 +1330,8 @@ function AIDrawer({
 
           {!ai ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
-                <Sparkles className="h-8 w-8 text-indigo-500" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
+                <Sparkles className="h-8 w-8 text-slate-400" />
               </div>
               <p className="mt-4 max-w-sm text-sm text-slate-500">
                 Belum ada materi AI untuk tugas ini. Generate penjelasan, kunci jawaban, dan post-test sekarang.
@@ -1222,7 +1339,7 @@ function AIDrawer({
               <button
                 onClick={() => onGenerate(task)}
                 disabled={loading}
-                className="mt-5 flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-60"
+                className="mt-5 flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:opacity-60"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {loading ? 'AI sedang berpikir...' : 'Generate dengan AI'}
@@ -1230,19 +1347,19 @@ function AIDrawer({
             </div>
           ) : (
             <>
-              <Section icon={<Target className="h-4 w-4" />} title="Penjelasan Materi" tone="text-indigo-600" body={ai.explanation} />
-              <Section icon={<CheckCheck className="h-4 w-4" />} title="Kunci Jawaban / Solusi" tone="text-emerald-600" body={ai.answer} />
+              <Section icon={<Target className="h-4 w-4" />} title="Penjelasan Materi" tone="text-slate-900" body={ai.explanation} />
+              <Section icon={<CheckCheck className="h-4 w-4" />} title="Kunci Jawaban / Solusi" tone="text-slate-900" body={ai.answer} />
 
               {ai.post_test?.length > 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <h4 className="flex items-center gap-2 text-sm font-semibold text-amber-600">
+                    <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                       <HelpCircle className="h-4 w-4" /> Post-Test
                     </h4>
                     <button
                       onClick={() => onGenerate(task)}
                       disabled={loading}
-                      className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+                      className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
                     >
                       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                       Regenerate
@@ -1250,7 +1367,7 @@ function AIDrawer({
                   </div>
                   <div className="space-y-4">
                     {ai.post_test.map((q, qIdx) => (
-                      <div key={qIdx} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div key={qIdx} className="rounded-lg border border-slate-200 bg-white p-3">
                         <p className="mb-2 text-sm font-medium text-slate-700">
                           {qIdx + 1}. {q.question}
                         </p>
@@ -1260,7 +1377,7 @@ function AIDrawer({
                             return (
                               <label
                                 key={oIdx}
-                                className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition ${
+                                className={`flex cursor-pointer items-center gap-2.5 rounded-md border px-3 py-2 text-sm transition ${
                                   chosen
                                     ? 'border-indigo-400 bg-indigo-50 text-slate-900'
                                     : 'border-transparent text-slate-600 hover:bg-slate-50'
@@ -1284,7 +1401,7 @@ function AIDrawer({
                   </div>
 
                   {score !== null ? (
-                    <div className="mt-4 flex items-center justify-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="mt-4 flex items-center justify-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                       <Trophy className="h-6 w-6 text-emerald-600" />
                       <div>
                         <p className="text-sm font-semibold text-emerald-700">Skor Post-Test: {score}%</p>
@@ -1296,7 +1413,7 @@ function AIDrawer({
                   ) : (
                     <button
                       onClick={onSubmitQuiz}
-                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600"
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800"
                     >
                       <Send className="h-4 w-4" /> Submit Jawaban Post-Test
                     </button>
@@ -1322,19 +1439,19 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Section({ icon, title, tone, body }: { icon: React.ReactNode; title: string; tone: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
       <h4 className={`mb-2 flex items-center gap-2 text-sm font-semibold ${tone}`}>
         {icon} {title}
       </h4>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{body}</p>
+      <RichText text={body} />
     </div>
   );
 }
 
 function EmptyState({ hasTasks, onAdd }: { hasTasks: boolean; onAdd: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white py-20 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100">
         <ListTodo className="h-8 w-8 text-slate-400" />
       </div>
       <p className="mt-4 font-medium text-slate-700">{hasTasks ? 'Tidak ada tugas yang cocok' : 'Belum ada tugas'}</p>
@@ -1344,7 +1461,7 @@ function EmptyState({ hasTasks, onAdd }: { hasTasks: boolean; onAdd: () => void 
       {!hasTasks && (
         <button
           onClick={onAdd}
-          className="mt-5 flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          className="mt-5 flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-700"
         >
           <Plus className="h-4 w-4" /> Tambah Tugas
         </button>
