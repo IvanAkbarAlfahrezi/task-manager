@@ -14,6 +14,14 @@ import ConfirmDialog from './ConfirmDialog';
 
 const API = 'http://localhost:3000/api';
 
+const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
+  const headers = {
+    ...options.headers,
+    'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123',
+  };
+  return fetch(url, { ...options, headers });
+};
+
 interface Note {
   id: string;
   title: string;
@@ -57,7 +65,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
   async function fetchNotes() {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/notes`);
+      const res = await fetchWithAuth(`${API}/notes`);
       const json = await res.json();
       if (json.success) setNotes(json.data);
       else notify('Gagal memuat catatan: ' + (json.error || ''), 'err');
@@ -95,9 +103,9 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     setSaving(true);
     try {
       if (editing) {
-        const res = await fetch(`${API}/notes?id=${editing.id}`, {
+        const res = await fetchWithAuth(`${API}/notes?id=${editing.id}`, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' },
           body: JSON.stringify({ title, content, color }),
         });
         const json = await res.json();
@@ -111,9 +119,9 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
           notify('Catatan diperbarui');
         } else notify('Gagal memperbarui: ' + (json.error || ''), 'err');
       } else {
-        const res = await fetch(`${API}/notes`, {
+        const res = await fetchWithAuth(`${API}/notes`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' },
           body: JSON.stringify({ title, content, color, pinned: false }),
         });
         const json = await res.json();
@@ -134,9 +142,9 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     const next = !n.pinned;
     setNotes((prev) => prev.map((x) => (x.id === n.id ? { ...x, pinned: next } : x)).sort(sortNotes));
     try {
-      await fetch(`${API}/notes?id=${n.id}`, {
+      await fetchWithAuth(`${API}/notes?id=${n.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' },
         body: JSON.stringify({ pinned: next }),
       });
     } catch {
@@ -149,7 +157,7 @@ export default function NotesView({ notify }: { notify: (m: string, t?: 'ok' | '
     const prev = notes;
     setNotes((p) => p.filter((n) => n.id !== id));
     try {
-      await fetch(`${API}/notes?id=${id}`, { method: 'DELETE' });
+      await fetchWithAuth(`${API}/notes?id=${id}`, { method: 'DELETE', headers: { 'x-api-key': import.meta.env.VITE_BACKEND_API_KEY || 'secret123' } });
       notify('Catatan dihapus');
     } catch {
       setNotes(prev);

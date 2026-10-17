@@ -39,6 +39,7 @@ import {
   GripVertical,
   Pencil,
   StickyNote,
+  LogOut,
 } from 'lucide-react';
 import NotesView from './components/NotesView';
 import NotificationBell from './components/NotificationBell';
@@ -46,6 +47,7 @@ import RichText from './components/RichText';
 import ConfirmDialog from './components/ConfirmDialog';
 
 const API = 'http://localhost:3000/api';
+
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed';
 
@@ -116,7 +118,7 @@ const toLocalInput = (iso: string) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-export default function App() {
+export default function App({ onLogout }: { onLogout: () => void }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [aiMap, setAiMap] = useState<Record<string, AIData>>({});
   const [loading, setLoading] = useState(true);
@@ -514,6 +516,13 @@ export default function App() {
             <div className="flex items-center gap-2">
               <NotificationBell tasks={tasks} onOpenTask={openDetail} onGoBoard={() => setView('board')} />
               <button
+                onClick={onLogout}
+                className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm active:scale-95"
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+              <button
                 onClick={fetchAll}
                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
                 title="Muat ulang"
@@ -599,7 +608,7 @@ export default function App() {
                     }}
                     className="grid grid-cols-1 gap-3 xl:grid-cols-2"
                   >
-                    {searched.map((task, idx) => (
+                    {searched.map((task) => (
                       <motion.div
                         key={task.id}
                         variants={{
