@@ -224,7 +224,7 @@ function urgencyText(d) {
   return `${d} HARI LAGI (H-${d})`;
 }
 
-function buildMessage(task, d) {
+function buildMessage(task, d, sent = false) {
   const due = new Date(task.deadline);
   let dateLabel = due.toLocaleDateString('id-ID', {
     weekday: 'long',
@@ -237,10 +237,12 @@ function buildMessage(task, d) {
   }
 
   const desc = task.description ? `${task.description}\n\n` : '';
+  const mark = sent ? '✅' : '🔔';
+  const note = sent ? '\n_(sudah pernah dikirim hari ini)_' : '';
 
   return (
     `*${urgencyText(d)}*\n\n` +
-    `✅ *${task.title}*\n` +
+    `${mark} *${task.title}*${note}\n` +
     desc +
     `Deadline: ${dateLabel}\n\n` +
     `Selesaikan sekarang, jangan ditunda.`
@@ -263,9 +265,15 @@ function buildDigest(items) {
   const lines = items
     .slice()
     .sort((a, b) => a.d - b.d)
-    .map((it, i) => `✅ ${i + 1}. *${it.task.title}* — ${shortUrgency(it.d)}${clockLabel(it.task.deadline)}`);
+    .map((it, i) => `${it.sent ? '✅' : '🔔'} ${i + 1}. *${it.task.title}* — ${shortUrgency(it.d)}${clockLabel(it.task.deadline)}`);
+  const total = items.length;
+  const sentCount = items.filter((it) => it.sent).length;
+  const header =
+    sentCount > 0
+      ? `*${total} TUGAS MENDESAK* (${sentCount} sudah dikirim ✅)`
+      : `*${total} TUGAS MENDESAK*`;
   return (
-    `*${items.length} TUGAS MENDESAK*\n\n` +
+    `${header}\n\n` +
     lines.join('\n') +
     `\n\nSelesaikan sekarang, jangan ditunda.`
   );
@@ -322,7 +330,8 @@ async function notifyDeadline(slot) {
       console.log(`   Kuota hari ini: tersisa ${remaining}/${MAX_SENDS_PER_DAY} pesan.`);
     }
 
-    const pending = [];
+    const fresh = [];
+    const resent = [];
     for (const task of json.data) {
       if (task.status === 'completed' || !task.deadline) continue;
       const d = daysUntil(task.deadline);
@@ -331,42 +340,45 @@ async function notifyDeadline(slot) {
       const type = labelType(d);
       if (!type) continue;
 
-      if (ANTI_SPAM && (await hasLog(task.id, today))) {
-        console.log(`   ⏭ skip (sudah terkirim hari ini): ${task.title} [${type}/${slot}]`);
-        continue;
+      const sent = ANTI_SPAM && (await hasLog(task.id, today));
+      if (sent) {
+        console.log(`   ✅ sudah terkirim hari ini (kirim ulang dgn tanda ✅): ${task.title} [${type}/${slot}]`);
+        resent.push({ task, d, type, sent: true });
+      } else {
+        fresh.push({ task, d, type, sent: false });
       }
-
-      pending.push({ task, d, type });
     }
 
-    if (pending.length === 0) {
-      console.log('   Selesai. Tidak ada tugas baru yang perlu dikirim.');
+    const allItems = [...fresh, ...resent];
+
+    if (allItems.length === 0) {
+      console.log('   Selesai. Tidak ada tugas mepet deadline.');
       return;
     }
 
     if (DIGEST) {
       try {
-        await sendWAMessage(TARGET, buildDigest(pending));
+        await sendWAMessage(TARGET, buildDigest(allItems));
         bumpTodayCount(today, 1);
-        console.log(`   ✅ terkirim (digest): ${pending.length} tugas`);
-        if (ANTI_SPAM) for (const it of pending) await addLog(it.task.id, today, it.type, slot);
+        console.log(`   ✅ terkirim (digest): ${fresh.length} baru, ${resent.length} kirim ulang`);
+        if (ANTI_SPAM) for (const it of fresh) await addLog(it.task.id, today, it.type, slot);
       } catch (err) {
         console.error('   ❌ gagal kirim digest:', err?.message || String(err));
       }
     } else {
       let sent = 0;
-      for (const { task, d, type } of pending) {
+      for (const { task, d, type, sent: alreadySent } of allItems) {
         if (remaining <= 0) {
           console.log(`   ⏹ Batas harian tercapai (${MAX_SENDS_PER_DAY} pesan/hari). Sisa tugas dilewati.`);
           break;
         }
         try {
-          await sendWAMessage(TARGET, buildMessage(task, d));
+          await sendWAMessage(TARGET, buildMessage(task, d, alreadySent));
           sent++;
           remaining--;
           bumpTodayCount(today, 1);
-          console.log(`   ✅ terkirim: ${task.title} [${type}/${slot}]`);
-          if (ANTI_SPAM) await addLog(task.id, today, type, slot);
+          console.log(`   ✅ terkirim: ${task.title} [${type}/${slot}]${alreadySent ? ' (kirim ulang)' : ''}`);
+          if (ANTI_SPAM && !alreadySent) await addLog(task.id, today, type, slot);
         } catch (err) {
           console.error(`   ❌ gagal kirim "${task.title}":`, err?.message || String(err));
         }
