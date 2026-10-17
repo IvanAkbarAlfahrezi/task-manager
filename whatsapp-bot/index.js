@@ -4,7 +4,6 @@ const path = require('path');
 const readline = require('readline');
 const {
   default: makeWASocket,
-  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
   initAuthCreds,
